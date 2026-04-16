@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>In Loving Memory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="site-shell">
+      <header class="hero section-card">
+        <!-- HERO TEXT: Replace name, dates, and quote below. -->
+        <p class="eyebrow">In Loving Memory</p>
+        <h1>Thove Wallevik</h1>
+        <p class="dates">March 15, 1956 – January 9, 2026</p>
+        <blockquote>
+          “Her warmth, kindness, and quiet strength will live on in every life she touched.”
+        </blockquote>
+      </header>
+
+      <section class="section-card" aria-label="Photo memories">
+        <div class="section-heading">
+          <h2>Photo Memories</h2>
+          <p>Moments we hold close in our hearts.</p>
+        </div>
+
+        <div class="slideshow" id="slideshow" aria-live="polite">
+          <!-- IMAGES: Slides are rendered by app.js from a 23-photo list in /images. -->
+          <div class="slides-track" id="slidesTrack"></div>
+
+          <button class="slide-control prev" id="prevSlide" type="button" aria-label="Previous photo">
+            ‹
+          </button>
+          <button class="slide-control next" id="nextSlide" type="button" aria-label="Next photo">
+            ›
+          </button>
+        </div>
+
+        <div class="slide-dots" id="slideDots" aria-label="Photo indicators"></div>
+      </section>
+
+      <section class="section-card memorial-text" aria-label="Memorial text">
+        <div class="section-heading">
+          <h2>Remembering Her</h2>
+        </div>
+        <!-- MEMORIAL TEXT: Replace these paragraphs with your own words and memories. -->
+        <p>
+          Thove was a gentle and steady presence, someone who made every room feel calmer and every person feel
+          welcome. She carried grace in the everyday moments and gave her care freely.
+        </p>
+        <p>
+          She had a way of listening that made people feel truly seen. Her laughter, patience, and devotion to family
+          created a home full of warmth that continues to guide us.
+        </p>
+        <p>
+          We miss her deeply, and we are forever grateful for her love. Through memories shared here, we honor her life
+          and keep her spirit close.
+        </p>
+      </section>
+
+      <section class="section-card guestbook" aria-label="Guestbook">
+        <div class="section-heading">
+          <h2>Guestbook</h2>
+          <p>If you would like, please leave a memory or a few kind words.</p>
+        </div>
+
+        <form id="guestbookForm" novalidate>
+          <div class="form-row">
+            <label for="name">Your name</label>
+            <input id="name" name="name" type="text" maxlength="80" required />
+          </div>
+
+          <div class="form-row">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="5" maxlength="800" required></textarea>
+          </div>
+
+          <div class="form-row">
+            <label for="visitDate">Date (optional)</label>
+            <input id="visitDate" name="visitDate" type="date" />
+          </div>
+
+          <!-- BASIC SPAM PROTECTION: Honeypot field should stay empty. -->
+          <div class="honeypot" aria-hidden="true">
+            <label for="website">Website</label>
+            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <button type="submit" id="submitMessage">Share message</button>
+          <p class="form-feedback" id="formFeedback" role="status"></p>
+        </form>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Forever remembered, forever loved.</p>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

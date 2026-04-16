@@ -1,0 +1,29 @@
+# Images folder
+
+Add 23 memorial photos in this folder using these exact names:
+
+- `photo-01.jpg`
+- `photo-02.jpg`
+- `photo-03.jpg`
+- `photo-04.jpg`
+- `photo-05.jpg`
+- `photo-06.jpg`
+- `photo-07.jpg`
+- `photo-08.jpg`
+- `photo-09.jpg`
+- `photo-10.jpg`
+- `photo-11.jpg`
+- `photo-12.jpg`
+- `photo-13.jpg`
+- `photo-14.jpg`
+- `photo-15.jpg`
+- `photo-16.jpg`
+- `photo-17.jpg`
+- `photo-18.jpg`
+- `photo-19.jpg`
+- `photo-20.jpg`
+- `photo-21.jpg`
+- `photo-22.jpg`
+- `photo-23.jpg`
+
+If you prefer different filenames or image extensions, update the `PHOTO_ITEMS` list in `app.js`.

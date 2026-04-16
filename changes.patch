@@ -1,0 +1,840 @@
+diff --git a/.firebaserc b/.firebaserc
+new file mode 100644
+index 0000000000000000000000000000000000000000..ef2ea1ffb4fb7a8ee40488c947f6772f80fb4963
+--- /dev/null
++++ b/.firebaserc
+@@ -0,0 +1,5 @@
++{
++  "projects": {
++    "default": "REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID"
++  }
++}
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..a79e9486f8ebcb8da7cb265567c782d2079b8717
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,100 @@
++# Thove Memorial Website
++
++A simple, respectful memorial site built with plain HTML, CSS, and JavaScript, designed for Firebase Hosting + Firestore guestbook storage.
++
++## Project structure
++
++```text
++.
++├── .firebaserc
++├── app.js
++├── firebase.json
++├── firestore.indexes.json
++├── firestore.rules
++├── images/
++│   └── README.md
++├── index.html
++├── styles.css
++└── README.md
++```
++
++## What is included
++
++- Hero section (name, dates, quote)
++- Simple 23-photo slideshow with previous/next buttons and dot indicators
++- Memorial text section
++- Guestbook form (name + message + optional date)
++- Guestbook messages stored and read from Firestore
++- Basic spam protection:
++  - Honeypot field
++  - Client-side cooldown between submissions
++  - Length validation
++
++## Local setup
++
++1. Clone the repository and enter it.
++2. Add your photos in `images/` using the names `photo-01.jpg` through `photo-23.jpg` (or update `PHOTO_ITEMS` in `app.js`).
++3. Open `app.js` and replace the Firebase config object with your own project values.
++4. (Optional) Start a static server:
++
++```bash
++python3 -m http.server 8080
++```
++
++Then open `http://localhost:8080`.
++
++## Firebase setup (Hosting + Firestore)
++
++### 1) Create Firebase project
++
++1. Go to Firebase Console.
++2. Create a new project.
++3. In **Project settings > General**, add a **Web app**.
++4. Copy the web config and paste it into `app.js`.
++
++### 2) Enable Firestore
++
++1. Go to **Firestore Database** in Firebase Console.
++2. Click **Create database**.
++3. Start in production mode (recommended).
++4. Choose a Firestore region.
++
++### 3) Configure local project files
++
++1. Replace project id in `.firebaserc`:
++   - `REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID`
++2. Keep `firestore.rules` and `firestore.indexes.json` in repo root.
++
++### 4) Install Firebase CLI
++
++```bash
++npm install -g firebase-tools
++firebase login
++```
++
++### 5) Deploy Firestore rules/indexes + Hosting
++
++From repo root:
++
++```bash
++firebase deploy --only firestore:rules,firestore:indexes,hosting
++```
++
++When successful, CLI prints your Hosting URL.
++
++## Editing guide
++
++- `index.html`
++  - Update hero text, dates, quote, memorial paragraphs.
++- `app.js`
++  - Update slideshow image paths + alt text in `PHOTO_ITEMS` (currently 23 photo slots).
++  - Update Firebase config.
++  - Adjust guestbook limits (`COOLDOWN_MS`, `MAX_MESSAGES`).
++- `styles.css`
++  - Adjust colors, spacing, typography for desired tone.
++
++## Notes
++
++- This is intentionally lightweight and framework-free.
++- Firestore rules currently allow public create/read with schema + length checks.
++- For stronger anti-spam, consider adding Firebase App Check and/or Cloud Functions moderation later.
+diff --git a/app.js b/app.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..39bf1232f78712d1ec4b0c14c893e5ad137d85af
+--- /dev/null
++++ b/app.js
+@@ -0,0 +1,249 @@
++import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
++import {
++  addDoc,
++  collection,
++  getFirestore,
++  limit,
++  onSnapshot,
++  orderBy,
++  query,
++  serverTimestamp
++} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
++
++// FIREBASE CONFIG: Replace this object with your Firebase project's web app config.
++const firebaseConfig = {
++  apiKey: "REPLACE_WITH_API_KEY",
++  authDomain: "REPLACE_WITH_PROJECT_ID.firebaseapp.com",
++  projectId: "REPLACE_WITH_PROJECT_ID",
++  storageBucket: "REPLACE_WITH_PROJECT_ID.appspot.com",
++  messagingSenderId: "REPLACE_WITH_SENDER_ID",
++  appId: "REPLACE_WITH_APP_ID"
++};
++
++const isFirebaseConfigured = !Object.values(firebaseConfig).some((value) => String(value).includes("REPLACE_WITH"));
++const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
++const db = app ? getFirestore(app) : null;
++
++const COOLDOWN_MS = 25_000;
++const MAX_MESSAGES = 25;
++const LAST_SUBMIT_KEY = "thove_memorial_last_submit";
++
++// IMAGES: Replace filenames/alt text below with your 23 memorial photos in /images.
++const PHOTO_ITEMS = [
++  { src: "images/photo-01.jpg", alt: "Memorial photo 1" },
++  { src: "images/photo-02.jpg", alt: "Memorial photo 2" },
++  { src: "images/photo-03.jpg", alt: "Memorial photo 3" },
++  { src: "images/photo-04.jpg", alt: "Memorial photo 4" },
++  { src: "images/photo-05.jpg", alt: "Memorial photo 5" },
++  { src: "images/photo-06.jpg", alt: "Memorial photo 6" },
++  { src: "images/photo-07.jpg", alt: "Memorial photo 7" },
++  { src: "images/photo-08.jpg", alt: "Memorial photo 8" },
++  { src: "images/photo-09.jpg", alt: "Memorial photo 9" },
++  { src: "images/photo-10.jpg", alt: "Memorial photo 10" },
++  { src: "images/photo-11.jpg", alt: "Memorial photo 11" },
++  { src: "images/photo-12.jpg", alt: "Memorial photo 12" },
++  { src: "images/photo-13.jpg", alt: "Memorial photo 13" },
++  { src: "images/photo-14.jpg", alt: "Memorial photo 14" },
++  { src: "images/photo-15.jpg", alt: "Memorial photo 15" },
++  { src: "images/photo-16.jpg", alt: "Memorial photo 16" },
++  { src: "images/photo-17.jpg", alt: "Memorial photo 17" },
++  { src: "images/photo-18.jpg", alt: "Memorial photo 18" },
++  { src: "images/photo-19.jpg", alt: "Memorial photo 19" },
++  { src: "images/photo-20.jpg", alt: "Memorial photo 20" },
++  { src: "images/photo-21.jpg", alt: "Memorial photo 21" },
++  { src: "images/photo-22.jpg", alt: "Memorial photo 22" },
++  { src: "images/photo-23.jpg", alt: "Memorial photo 23" }
++];
++
++const slidesTrack = document.getElementById("slidesTrack");
++const prevButton = document.getElementById("prevSlide");
++const nextButton = document.getElementById("nextSlide");
++const slideDots = document.getElementById("slideDots");
++let slideIndex = 0;
++let slides = [];
++
++function buildSlides() {
++  slidesTrack.innerHTML = "";
++
++  PHOTO_ITEMS.forEach((item, index) => {
++    const figure = document.createElement("figure");
++    figure.className = `slide${index === 0 ? " is-active" : ""}`;
++
++    const image = document.createElement("img");
++    image.src = item.src;
++    image.alt = item.alt;
++
++    figure.append(image);
++    slidesTrack.append(figure);
++  });
++
++  slides = [...document.querySelectorAll(".slide")];
++}
++
++function renderSlideDots() {
++  slideDots.innerHTML = "";
++
++  slides.forEach((_, index) => {
++    const dot = document.createElement("button");
++    dot.type = "button";
++    dot.className = "slide-dot";
++    dot.setAttribute("aria-label", `Go to photo ${index + 1}`);
++    dot.addEventListener("click", () => showSlide(index));
++    slideDots.append(dot);
++  });
++}
++
++function showSlide(index) {
++  slideIndex = (index + slides.length) % slides.length;
++
++  slides.forEach((slide, idx) => {
++    slide.classList.toggle("is-active", idx === slideIndex);
++  });
++
++  [...slideDots.children].forEach((dot, idx) => {
++    dot.classList.toggle("is-active", idx === slideIndex);
++  });
++}
++
++buildSlides();
++
++if (slides.length > 1) {
++  prevButton.addEventListener("click", () => showSlide(slideIndex - 1));
++  nextButton.addEventListener("click", () => showSlide(slideIndex + 1));
++  renderSlideDots();
++  showSlide(0);
++} else {
++  prevButton.hidden = true;
++  nextButton.hidden = true;
++  slideDots.hidden = true;
++}
++
++const form = document.getElementById("guestbookForm");
++const feedback = document.getElementById("formFeedback");
++const submitButton = document.getElementById("submitMessage");
++const messagesEl = document.getElementById("messages");
++const guestbookRef = db ? collection(db, "guestbookMessages") : null;
++
++function setFeedback(message, isError = true) {
++  feedback.textContent = message;
++  feedback.style.color = isError ? "#7f3d2f" : "#4d6c49";
++}
++
++function sanitizeInput(input) {
++  return input.trim().replace(/\s+/g, " ");
++}
++
++function canSubmitNow() {
++  const lastSubmitted = Number(localStorage.getItem(LAST_SUBMIT_KEY) || 0);
++  const elapsed = Date.now() - lastSubmitted;
++  return elapsed >= COOLDOWN_MS;
++}
++
++function storeSubmitTimestamp() {
++  localStorage.setItem(LAST_SUBMIT_KEY, String(Date.now()));
++}
++
++form.addEventListener("submit", async (event) => {
++  event.preventDefault();
++
++  if (!guestbookRef) {
++    setFeedback("Guestbook is not set up yet. Please configure Firebase first.");
++    return;
++  }
++
++  const formData = new FormData(form);
++  const name = sanitizeInput(String(formData.get("name") || ""));
++  const message = sanitizeInput(String(formData.get("message") || ""));
++  const visitDate = String(formData.get("visitDate") || "");
++  const honeypot = sanitizeInput(String(formData.get("website") || ""));
++
++  if (honeypot) {
++    setFeedback("Unable to submit right now. Please try again later.");
++    return;
++  }
++
++  if (!name || !message) {
++    setFeedback("Please enter your name and a message.");
++    return;
++  }
++
++  if (name.length < 2 || message.length < 8) {
++    setFeedback("Please share a slightly longer name/message.");
++    return;
++  }
++
++  if (!canSubmitNow()) {
++    setFeedback("Please wait a moment before posting again.");
++    return;
++  }
++
++  submitButton.disabled = true;
++  setFeedback("Sending your message…", false);
++
++  try {
++    await addDoc(guestbookRef, {
++      name,
++      message,
++      visitDate: visitDate || null,
++      createdAt: serverTimestamp()
++    });
++
++    storeSubmitTimestamp();
++    form.reset();
++    setFeedback("Thank you for sharing your memory.", false);
++  } catch (error) {
++    console.error(error);
++    setFeedback("Sorry, something went wrong while saving your message.");
++  } finally {
++    submitButton.disabled = false;
++  }
++});
++
++function formatMessageDate(data) {
++  if (data.visitDate) {
++    return new Date(`${data.visitDate}T12:00:00`).toLocaleDateString();
++  }
++
++  if (data.createdAt?.toDate) {
++    return data.createdAt.toDate().toLocaleDateString();
++  }
++
++  return "Date unavailable";
++}
++
++function renderMessage(docSnap) {
++  const data = docSnap.data();
++  const card = document.createElement("article");
++  card.className = "message-card";
++
++  const meta = document.createElement("div");
++  meta.className = "message-meta";
++  meta.textContent = `${data.name} • ${formatMessageDate(data)}`;
++
++  const text = document.createElement("p");
++  text.className = "message-text";
++  text.textContent = data.message;
++
++  card.append(meta, text);
++  return card;
++}
++
++if (!guestbookRef) {
++  messagesEl.innerHTML =
++    "<p class='message-meta'>Guestbook will appear here after Firebase is configured in app.js.</p>";
++} else {
++  const messagesQuery = query(guestbookRef, orderBy("createdAt", "desc"), limit(MAX_MESSAGES));
++
++  onSnapshot(messagesQuery, (snapshot) => {
++    messagesEl.innerHTML = "";
++
++    if (snapshot.empty) {
++      messagesEl.innerHTML = "<p class='message-meta'>No messages yet. You can be the first.</p>";
++      return;
++    }
++
++    snapshot.forEach((docSnap) => {
++      messagesEl.append(renderMessage(docSnap));
++    });
++  });
++}
+diff --git a/firebase.json b/firebase.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e225d6700a6f2b2dd9e8c7435f9853c8bec10f71
+--- /dev/null
++++ b/firebase.json
+@@ -0,0 +1,15 @@
++{
++  "hosting": {
++    "public": ".",
++    "ignore": [
++      "firebase.json",
++      "**/.*",
++      "**/node_modules/**"
++    ],
++    "rewrites": []
++  },
++  "firestore": {
++    "rules": "firestore.rules",
++    "indexes": "firestore.indexes.json"
++  }
++}
+diff --git a/firestore.indexes.json b/firestore.indexes.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..415027e5ddaf944819977c1d5e9aaf49e835093f
+--- /dev/null
++++ b/firestore.indexes.json
+@@ -0,0 +1,4 @@
++{
++  "indexes": [],
++  "fieldOverrides": []
++}
+diff --git a/firestore.rules b/firestore.rules
+new file mode 100644
+index 0000000000000000000000000000000000000000..dbc8b759fdf820e17130489857fc5e92961c6883
+--- /dev/null
++++ b/firestore.rules
+@@ -0,0 +1,22 @@
++rules_version = '2';
++service cloud.firestore {
++  match /databases/{database}/documents {
++    match /guestbookMessages/{messageId} {
++      allow read: if true;
++
++      // Basic write limits for public guestbook submissions.
++      allow create: if request.resource.data.keys().hasOnly(['name', 'message', 'visitDate', 'createdAt'])
++                    && request.resource.data.name is string
++                    && request.resource.data.name.size() >= 2
++                    && request.resource.data.name.size() <= 80
++                    && request.resource.data.message is string
++                    && request.resource.data.message.size() >= 8
++                    && request.resource.data.message.size() <= 800
++                    && (request.resource.data.visitDate == null
++                        || request.resource.data.visitDate is string)
++                    && request.resource.data.createdAt is timestamp;
++
++      allow update, delete: if false;
++    }
++  }
++}
+diff --git a/images/README.md b/images/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..c7923e0737dc236ceeab2bde59e4f39ac78da39a
+--- /dev/null
++++ b/images/README.md
+@@ -0,0 +1,29 @@
++# Images folder
++
++Add 23 memorial photos in this folder using these exact names:
++
++- `photo-01.jpg`
++- `photo-02.jpg`
++- `photo-03.jpg`
++- `photo-04.jpg`
++- `photo-05.jpg`
++- `photo-06.jpg`
++- `photo-07.jpg`
++- `photo-08.jpg`
++- `photo-09.jpg`
++- `photo-10.jpg`
++- `photo-11.jpg`
++- `photo-12.jpg`
++- `photo-13.jpg`
++- `photo-14.jpg`
++- `photo-15.jpg`
++- `photo-16.jpg`
++- `photo-17.jpg`
++- `photo-18.jpg`
++- `photo-19.jpg`
++- `photo-20.jpg`
++- `photo-21.jpg`
++- `photo-22.jpg`
++- `photo-23.jpg`
++
++If you prefer different filenames or image extensions, update the `PHOTO_ITEMS` list in `app.js`.
+diff --git a/index.html b/index.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..b9c87350a77a0e2d1ee52263ca99224a341ef12b
+--- /dev/null
++++ b/index.html
+@@ -0,0 +1,109 @@
++<!DOCTYPE html>
++<html lang="en">
++  <head>
++    <meta charset="UTF-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <title>In Loving Memory</title>
++    <link rel="preconnect" href="https://fonts.googleapis.com" />
++    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
++    <link
++      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500&display=swap"
++      rel="stylesheet"
++    />
++    <link rel="stylesheet" href="styles.css" />
++  </head>
++  <body>
++    <main class="site-shell">
++      <header class="hero section-card">
++        <!-- HERO TEXT: Replace name, dates, and quote below. -->
++        <p class="eyebrow">In Loving Memory</p>
++        <h1>Thove Wallevik</h1>
++        <p class="dates">March 15, 1956 – January 9, 2026</p>
++        <blockquote>
++          “Her warmth, kindness, and quiet strength will live on in every life she touched.”
++        </blockquote>
++      </header>
++
++      <section class="section-card" aria-label="Photo memories">
++        <div class="section-heading">
++          <h2>Photo Memories</h2>
++          <p>Moments we hold close in our hearts.</p>
++        </div>
++
++        <div class="slideshow" id="slideshow" aria-live="polite">
++          <!-- IMAGES: Slides are rendered by app.js from a 23-photo list in /images. -->
++          <div class="slides-track" id="slidesTrack"></div>
++
++          <button class="slide-control prev" id="prevSlide" type="button" aria-label="Previous photo">
++            ‹
++          </button>
++          <button class="slide-control next" id="nextSlide" type="button" aria-label="Next photo">
++            ›
++          </button>
++        </div>
++
++        <div class="slide-dots" id="slideDots" aria-label="Photo indicators"></div>
++      </section>
++
++      <section class="section-card memorial-text" aria-label="Memorial text">
++        <div class="section-heading">
++          <h2>Remembering Her</h2>
++        </div>
++        <!-- MEMORIAL TEXT: Replace these paragraphs with your own words and memories. -->
++        <p>
++          Thove was a gentle and steady presence, someone who made every room feel calmer and every person feel
++          welcome. She carried grace in the everyday moments and gave her care freely.
++        </p>
++        <p>
++          She had a way of listening that made people feel truly seen. Her laughter, patience, and devotion to family
++          created a home full of warmth that continues to guide us.
++        </p>
++        <p>
++          We miss her deeply, and we are forever grateful for her love. Through memories shared here, we honor her life
++          and keep her spirit close.
++        </p>
++      </section>
++
++      <section class="section-card guestbook" aria-label="Guestbook">
++        <div class="section-heading">
++          <h2>Guestbook</h2>
++          <p>If you would like, please leave a memory or a few kind words.</p>
++        </div>
++
++        <form id="guestbookForm" novalidate>
++          <div class="form-row">
++            <label for="name">Your name</label>
++            <input id="name" name="name" type="text" maxlength="80" required />
++          </div>
++
++          <div class="form-row">
++            <label for="message">Message</label>
++            <textarea id="message" name="message" rows="5" maxlength="800" required></textarea>
++          </div>
++
++          <div class="form-row">
++            <label for="visitDate">Date (optional)</label>
++            <input id="visitDate" name="visitDate" type="date" />
++          </div>
++
++          <!-- BASIC SPAM PROTECTION: Honeypot field should stay empty. -->
++          <div class="honeypot" aria-hidden="true">
++            <label for="website">Website</label>
++            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
++          </div>
++
++          <button type="submit" id="submitMessage">Share message</button>
++          <p class="form-feedback" id="formFeedback" role="status"></p>
++        </form>
++
++        <div class="messages" id="messages" aria-live="polite"></div>
++      </section>
++    </main>
++
++    <footer>
++      <p>Forever remembered, forever loved.</p>
++    </footer>
++
++    <script type="module" src="app.js"></script>
++  </body>
++</html>
+diff --git a/styles.css b/styles.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f5ad4cc5b581b6460c12efac54fc266907def7b
+--- /dev/null
++++ b/styles.css
+@@ -0,0 +1,253 @@
++:root {
++  --bg: #f6f2ed;
++  --card: #fffdfb;
++  --text: #3f372f;
++  --muted: #7a6f66;
++  --accent: #9a7f67;
++  --line: #e4dbd2;
++}
++
++* {
++  box-sizing: border-box;
++}
++
++body {
++  margin: 0;
++  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
++  background: var(--bg);
++  color: var(--text);
++  line-height: 1.65;
++}
++
++.site-shell {
++  width: min(900px, 92vw);
++  margin: 2.5rem auto;
++}
++
++.section-card {
++  background: var(--card);
++  border: 1px solid var(--line);
++  border-radius: 16px;
++  padding: 1.5rem;
++  margin-bottom: 1.2rem;
++  box-shadow: 0 6px 20px rgba(78, 58, 39, 0.05);
++}
++
++.hero {
++  text-align: center;
++  padding: 2rem 1.5rem;
++}
++
++.eyebrow {
++  letter-spacing: 0.1em;
++  text-transform: uppercase;
++  color: var(--muted);
++  font-size: 0.78rem;
++  margin: 0;
++}
++
++h1,
++h2 {
++  font-family: "Cormorant Garamond", Georgia, serif;
++  margin: 0.35rem 0;
++  font-weight: 600;
++}
++
++h1 {
++  font-size: clamp(2rem, 6vw, 3.3rem);
++}
++
++h2 {
++  font-size: clamp(1.6rem, 4.5vw, 2.2rem);
++}
++
++.dates {
++  margin: 0.4rem 0 0;
++  color: var(--muted);
++}
++
++blockquote {
++  margin: 1rem auto 0;
++  font-family: "Cormorant Garamond", Georgia, serif;
++  font-size: clamp(1.2rem, 3.4vw, 1.5rem);
++  color: #5b4d42;
++  max-width: 36ch;
++}
++
++.section-heading p {
++  margin: 0.2rem 0 1rem;
++  color: var(--muted);
++}
++
++.slideshow {
++  position: relative;
++  border-radius: 12px;
++  overflow: hidden;
++  border: 1px solid var(--line);
++  background: #f0e8df;
++  aspect-ratio: 16 / 10;
++}
++
++.slide {
++  position: absolute;
++  inset: 0;
++  opacity: 0;
++  transition: opacity 350ms ease;
++}
++
++.slide.is-active {
++  opacity: 1;
++}
++
++.slide img {
++  width: 100%;
++  height: 100%;
++  object-fit: cover;
++  display: block;
++}
++
++.slide-control {
++  position: absolute;
++  top: 50%;
++  transform: translateY(-50%);
++  border: 0;
++  width: 2.4rem;
++  height: 2.4rem;
++  border-radius: 999px;
++  background: rgba(63, 55, 47, 0.55);
++  color: #fff;
++  font-size: 1.5rem;
++  cursor: pointer;
++}
++
++.slide-control.prev {
++  left: 0.65rem;
++}
++
++.slide-control.next {
++  right: 0.65rem;
++}
++
++.slide-dots {
++  display: flex;
++  justify-content: center;
++  gap: 0.4rem;
++  margin-top: 0.7rem;
++}
++
++.slide-dot {
++  width: 0.55rem;
++  height: 0.55rem;
++  border: none;
++  border-radius: 999px;
++  background: #c3b8ae;
++  cursor: pointer;
++}
++
++.slide-dot.is-active {
++  background: var(--accent);
++}
++
++.memorial-text p {
++  margin: 0.7rem 0;
++}
++
++.form-row {
++  display: grid;
++  gap: 0.35rem;
++  margin-bottom: 0.9rem;
++}
++
++label {
++  font-size: 0.96rem;
++}
++
++input,
++textarea,
++button {
++  font: inherit;
++}
++
++input,
++textarea {
++  border: 1px solid #d7ccc3;
++  border-radius: 10px;
++  padding: 0.7rem 0.8rem;
++  background: #fff;
++  color: inherit;
++}
++
++textarea {
++  resize: vertical;
++}
++
++button[type="submit"] {
++  border: 0;
++  border-radius: 999px;
++  background: #6f5b4d;
++  color: #fff;
++  padding: 0.7rem 1.2rem;
++  cursor: pointer;
++}
++
++button[disabled] {
++  opacity: 0.65;
++  cursor: not-allowed;
++}
++
++.form-feedback {
++  min-height: 1.4rem;
++  color: #7f3d2f;
++}
++
++.honeypot {
++  position: absolute;
++  left: -9999px;
++}
++
++.messages {
++  margin-top: 1.2rem;
++  display: grid;
++  gap: 0.85rem;
++}
++
++.message-card {
++  border: 1px solid var(--line);
++  border-radius: 12px;
++  background: #fffcf8;
++  padding: 0.85rem;
++}
++
++.message-meta {
++  font-size: 0.87rem;
++  color: var(--muted);
++  margin-bottom: 0.35rem;
++}
++
++.message-text {
++  margin: 0;
++  white-space: pre-wrap;
++}
++
++footer {
++  text-align: center;
++  color: var(--muted);
++  padding: 0.6rem 0 1.7rem;
++}
++
++@media (max-width: 640px) {
++  .site-shell {
++    margin-top: 1rem;
++    margin-bottom: 1rem;
++  }
++
++  .section-card {
++    border-radius: 12px;
++    padding: 1rem;
++  }
++
++  .slide-control {
++    width: 2.1rem;
++    height: 2.1rem;
++  }
++}
