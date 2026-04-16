@@ -31,6 +31,7 @@ body {
   padding: 1.5rem;
   margin-bottom: 1.2rem;
   box-shadow: 0 6px 20px rgba(78, 58, 39, 0.05);
+  object-fit: contain;
 }
 
 .hero {
