@@ -12,13 +12,18 @@ import {
 
 // FIREBASE CONFIG: Replace this object with your Firebase project's web app config.
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_API_KEY",
-  authDomain: "REPLACE_WITH_PROJECT_ID.firebaseapp.com",
-  projectId: "REPLACE_WITH_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_PROJECT_ID.appspot.com",
-  messagingSenderId: "REPLACE_WITH_SENDER_ID",
-  appId: "REPLACE_WITH_APP_ID"
-};
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+      apiKey: "AIzaSyDP5W4Y9NMKiJLTKEWR7WcG8FLTH_OvRNU",
+      authDomain: "thovememorial.firebaseapp.com",
+      projectId: "thovememorial",
+      storageBucket: "thovememorial.firebasestorage.app",
+      messagingSenderId: "871173387508",
+      appId: "1:871173387508:web:f559812a2b6c7af1165aa1",
+      measurementId: "G-YTERE9QC03"
+    };
+
+
 
 const isFirebaseConfigured = !Object.values(firebaseConfig).some((value) => String(value).includes("REPLACE_WITH"));
 const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
